@@ -18,6 +18,7 @@ cargo run < INPUT
 
 1. [Day 1](/day_1)
 2. [Day 2](/day_2)
+2. [Day 3](/day_3)
 
 ## License
 

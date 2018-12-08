@@ -13,13 +13,14 @@
 
 extern crate regex;
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 use regex::Regex;
 use std::io;
 
 /// The Claim struct represents each Elf's claim to a specific part of the
 /// fabric
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct Claim {
     id: i64,
     x: i64,
@@ -130,9 +131,10 @@ impl Claim {
 fn main() {
     let re = Regex::new(r"#(\d+)\s+@\s+(\d+),(\d+):\s+(\d+)x(\d+)").unwrap();
     let mut claims: Vec<Claim> = vec![];
-    let mut overlap_area: i64 = 0;
-    let mut visited: HashSet<(&Claim, &Claim)> = HashSet::new();
-    let mut intersects: HashSet<Claim> = HashSet::new();
+    let mut claimed_by: HashMap<(i64, i64), &Claim> = HashMap::new();
+    let mut all: HashSet<&Claim> = HashSet::new();
+    let mut intersecting: HashSet<&Claim> = HashSet::new();
+    let mut sheet: HashMap<(i64, i64), i64> = HashMap::new();
 
     // Parse the input to Claim structs
     loop {
@@ -150,71 +152,27 @@ fn main() {
         }
     }
 
-    // Find all intersecting structs and store their intersections
-    // E.g.
-    // .....................
-    // ...AAAA.....AAAA.....
-    // ...AAXXBB...AAYYCC...
-    // ...AAXXBB...ZZYYCC...
-    // .....BBBB...BBCCCC...
-    // .....................
-    //
-    // A, B and C are claims, and X, Y and Z are the returned intersections
-    for c1 in &claims {
-        for c2 in &claims {
-            if c1 != c2
-                && c1.intersects_with(c2)
-                && !(visited.contains(&(c1, c2)) || visited.contains(&(c2, c1)))
-            {
-                intersects.insert(c1.intersecting_rect(c2));
-                visited.insert((c1, c2));
+    for claim in &claims {
+        for i in claim.left()..claim.right() {
+            for j in claim.top()..claim.bottom() {
+                *sheet.entry((i,j)).or_insert(0) += 1;
+                all.insert(&claim);
+
+                if !claimed_by.contains_key(&(i, j)) {
+                    claimed_by.insert((i, j), &claim);
+                }
+                else {
+                    intersecting.insert(claimed_by[&(i, j)]);
+                    intersecting.insert(&claim);
+                }
             }
         }
     }
+    let out1 = sheet.values().filter(|v| **v > 1).count();
+    println!("AREA: {}", out1);
 
-    let mut visited: HashSet<(&Claim, &Claim)> = HashSet::new();
-    let mut visited_nodes: HashSet<&Claim> = HashSet::new();
-    let mut new_intersects: Vec<Claim> = vec![];
-
-    // Find all intersections intersecting other intersections
-    // E.g.
-    // .................
-    // .....YY.....YY...
-    // ...XXZZ...XXQQ...
-    // ............ZZ...
-    // .................
-    //
-    // In the left example it returns Z as it's the intersection of
-    // intersections Y and X, while in the right example it returns Q three
-    // times as it's the intersection of X and Y and Z
-    for c1 in &intersects {
-        if visited_nodes.contains(c1) {
-            continue;
-        }
-        for c2 in &intersects {
-            if c1 != c2
-                && c1.intersects_with(c2)
-                && !(visited.contains(&(c1, c2)) || visited.contains(&(c2, c1)))
-            {
-                new_intersects.push(c1.intersecting_rect(c2));
-                visited.insert((c1, c2));
-                visited_nodes.insert(c1);
-                visited_nodes.insert(c2);
-            }
-        }
-    }
-
-    // Sum all intersecting areas
-    for c1 in &intersects {
-        overlap_area += c1.area();
-    }
-
-    // Deduct all intersecting areas that are intersecting others
-    for c2 in &new_intersects {
-        overlap_area -= c2.area();
-    }
-
-    println!("AREA {}", overlap_area);
+    let out2 = all.difference(&intersecting).next();
+    println!("UNCLAIMED: {:?}", out2);
 }
 
 /// Parses an input string into a Claim struct by the given Regex
